@@ -1,0 +1,71 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Master stack: PathToMasterStackFile'
+# aws cloudformation create-stack --stack-name ec2stack --template-body file://ec2.yml --capabilities CAPABILITY_NAMED_IAM --parameters ParameterKey=BranchName,ParameterValue=SubnetID --region us-east-1
+# aws cloudformation delete-stack --stack-name ec2stack --region us-east-1
+Parameters:
+  prepareStackName:
+    Type: String
+    Default: stackPrepareEC2
+  BranchName:
+    Default: "test"
+    Description: The BranchName the stack is running
+    Type: String
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    - Label:
+        default: Tagging and billing
+      Parameters:
+      - Customer
+      - CustomerProject
+    - Label:
+        default: Choose Branch and Environment
+      Parameters:
+      - Environment
+      - BranchName
+## Mappings:
+
+Resources:
+  myEC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      KeyName: devops
+      #DisableApiTermination: 
+      ImageId: ami-090fa75af13c156b4
+      InstanceType: t2.micro
+      #Monitoring: true|false
+      IamInstanceProfile: 
+        Fn::ImportValue:
+          !Sub "${prepareStackName}-ec2Profile"
+      SecurityGroupIds:
+        - Fn::ImportValue:
+            !Sub "${prepareStackName}-securityGroup"
+
+      UserData: 
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash -ex
+            # https://stackoverflow.com/questions/62524748/aws-ec2-user-data-script-isnt-working-as-expected
+            # userdata script is stored at /var/lib/cloud/instances/<instance-id>/
+            # and the log is in /var/log/cloud-init-output.log
+            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+            unzip awscliv2.zip
+            sudo ./aws/install
+            sudo yum -y update
+            sudo yum -y install ruby
+            sudo yum -y install wget
+            cd /home/ec2-user
+            echo ${AWS::Region}
+            wget https://aws-codedeploy-us-east-1.s3.us-east-1.amazonaws.com/latest/install
+            chmod +x ./install
+            sudo ./install auto
+            sudo service codedeploy-agent start
+            sudo service codedeploy-agent status
+      Tags:
+        - Key: key
+          Value: value
+
+#Outputs:
+  #PathToMasterStackFile
